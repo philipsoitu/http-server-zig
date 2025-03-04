@@ -35,6 +35,15 @@ pub fn main() !void {
         if (std.mem.eql(u8, root, "echo")) {
             const second = pathIter.next() orelse "";
             try response.sendText(connection, allocator, second);
+        } else if (std.mem.eql(u8, root, "user-agent")) {
+            var user_agent_str: []const u8 = "";
+            for (req.headers.items) |header| {
+                if (std.mem.eql(u8, header.name, "User-Agent")) {
+                    user_agent_str = header.value;
+                    break;
+                }
+            }
+            try response.sendText(connection, allocator, user_agent_str);
         } else {
             try response.notFound(connection, allocator);
         }
