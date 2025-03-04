@@ -25,20 +25,18 @@ pub fn main() !void {
     const req = try request.parseRequest(buff, allocator);
     try request.printRequest(req);
 
-    try response.sendHelloWorld(connection, allocator);
+    if (std.mem.eql(u8, req.start_line.target, "/")) {
+        try response.sendText(connection, allocator, "");
+    } else {
+        var pathIter = std.mem.split(u8, req.start_line.target, "/");
+        _ = pathIter.next();
 
-    //    if (std.mem.eql(u8, req.start_line.target, "/")) {
-    //        try response.sendString(connection, allocator);
-    //    } else {
-    //        var pathIter = std.mem.split(u8, req.start_line.target, "/");
-    //        _ = pathIter.next();
-    //
-    //        const root = pathIter.next() orelse "";
-    //        if (std.mem.eql(u8, root, "echo")) {
-    //            const second = pathIter.next() orelse "";
-    //            try response.echoServer(connection, second, allocator);
-    //        } else {
-    //            try response.not_found(connection);
-    //        }
-    //    }
+        const root = pathIter.next() orelse "";
+        if (std.mem.eql(u8, root, "echo")) {
+            const second = pathIter.next() orelse "";
+            try response.sendText(connection, allocator, second);
+        } else {
+            try response.notFound(connection, allocator);
+        }
+    }
 }
