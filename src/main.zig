@@ -13,14 +13,35 @@ pub fn main() !void {
     });
     defer listener.deinit();
 
-    const buff = try allocator.alloc(u8, 2048);
+    var thread_pool: std.Thread.Pool = undefined;
+    try std.Thread.Pool.init(&thread_pool, .{
+        .allocator = allocator,
+        .n_jobs = 10,
+    });
+    defer thread_pool.deinit();
+
+    try stdout.writeAll("Server started on 127.0.0.1:42069\n");
+
+    while (true) {
+        const connection = try listener.accept();
+        // Use a closure to handle the error properly
+        try thread_pool.spawn(struct {
+            fn run(conn: std.net.Server.Connection, out: std.fs.File.Writer, alloc: std.mem.Allocator) void {
+                handleConnection(conn, out, alloc) catch |err| {
+                    std.log.err("Connection handling failed: {}", .{err});
+                };
+            }
+        }.run, .{ connection, stdout, allocator });
+    }
+}
+
+fn handleConnection(connection: std.net.Server.Connection, stdout: std.fs.File.Writer, allocator: std.mem.Allocator) !void {
+    defer connection.stream.close();
+    const buff = try allocator.alloc(u8, 1048);
     defer allocator.free(buff);
 
-    const connection = try listener.accept();
-    defer connection.stream.close();
-
     _ = try connection.stream.read(buff);
-    try stdout.print("received: \n", .{});
+    try stdout.writeAll("received: \n");
 
     const req = try request.parseRequest(buff, allocator);
     try request.printRequest(req);
