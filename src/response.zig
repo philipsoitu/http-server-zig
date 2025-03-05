@@ -6,7 +6,7 @@ pub fn streamResponse(
     status_code: u16,
     status_text: []const u8,
     content_type: []const u8,
-    content_length: u16,
+    content_length: u64,
     body: []const u8,
     connection: net.Server.Connection,
     allocator: std.mem.Allocator,
@@ -51,6 +51,37 @@ pub fn notFound(
         "text/plain",
         0,
         "",
+        connection,
+        allocator,
+    );
+}
+
+pub fn sendFile(
+    connection: net.Server.Connection,
+    allocator: std.mem.Allocator,
+    filename: []const u8,
+) !void {
+    const full_path = try std.fmt.allocPrint(allocator, "files/{s}", .{filename});
+    defer allocator.free(full_path);
+
+    var file = try std.fs.cwd().openFile(full_path, .{});
+    defer file.close();
+
+    const file_size = try file.getEndPos();
+    const buffer = try allocator.alloc(u8, file_size);
+    defer allocator.free(buffer);
+
+    const bytes = try file.read(buffer);
+    if (bytes != file_size) {
+        @panic("Wrong file size");
+    }
+    try streamResponse(
+        "HTTP/1.1",
+        200,
+        "OK",
+        "application/octet-stream",
+        file_size,
+        buffer,
         connection,
         allocator,
     );

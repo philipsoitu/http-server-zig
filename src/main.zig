@@ -65,6 +65,9 @@ fn handleConnection(connection: std.net.Server.Connection, stdout: std.fs.File.W
                 }
             }
             try response.sendText(connection, allocator, user_agent_str);
+        } else if (true) {
+            const filename = pathIter.next() orelse "";
+            try response.sendFile(connection, allocator, filename);
         } else {
             try response.notFound(connection, allocator);
         }
