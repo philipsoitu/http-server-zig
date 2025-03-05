@@ -49,7 +49,7 @@ fn handleConnection(connection: std.net.Server.Connection, stdout: std.fs.File.W
     if (std.mem.eql(u8, req.start_line.target, "/")) {
         try response.sendText(connection, allocator, "");
     } else {
-        var pathIter = std.mem.split(u8, req.start_line.target, "/");
+        var pathIter = std.mem.splitAny(u8, req.start_line.target, "/");
         _ = pathIter.next();
 
         const root = pathIter.next() orelse "";
