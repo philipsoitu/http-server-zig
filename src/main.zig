@@ -74,7 +74,14 @@ fn handleConnection(connection: std.net.Server.Connection, stdout: std.fs.File.W
                     try response.sendFile(connection, allocator, filename);
                 },
                 .POST => {
-                    try response.createFile(connection, allocator, filename, req.body);
+                    var length: usize = 0;
+                    for (req.headers.items) |header| {
+                        if (std.mem.eql(u8, header.name, "Content-Length")) {
+                            length = try std.fmt.parseInt(usize, header.value, 10);
+                            break;
+                        }
+                    }
+                    try response.createFile(connection, allocator, filename, req.body, length);
                 },
             }
         } else {
