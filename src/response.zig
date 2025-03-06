@@ -99,7 +99,6 @@ pub fn createFile(
 
     var file = try std.fs.cwd().createFile(full_path, .{});
 
-    std.debug.print("{d}\n", .{contents_length});
     const parsed_contents = contents[0..contents_length];
     try file.writeAll(parsed_contents);
     defer file.close();
