@@ -1,7 +1,12 @@
 const std = @import("std");
 
+pub const HttpMethod = enum {
+    GET,
+    POST,
+};
+
 pub const StartLine = struct {
-    method: []const u8,
+    method: HttpMethod,
     target: []const u8,
     protocol: []const u8,
 };
@@ -23,12 +28,14 @@ pub fn parseRequest(buff: []const u8, allocator: std.mem.Allocator) !Request {
     // Parse start line
     const start_line_str = iter.next() orelse return error.InvalidRequest;
     var parts = std.mem.splitAny(u8, start_line_str, " ");
-    const method = parts.next() orelse return error.InvalidRequest;
+    const method_str = parts.next() orelse return error.InvalidRequest;
     const target = parts.next() orelse return error.InvalidRequest;
     const protocol = parts.next() orelse return error.InvalidRequest;
 
+    const method_enum = try parseMethod(method_str);
+
     const start_line = StartLine{
-        .method = method,
+        .method = method_enum,
         .target = target,
         .protocol = protocol,
     };
@@ -59,9 +66,15 @@ pub fn parseRequest(buff: []const u8, allocator: std.mem.Allocator) !Request {
     };
 }
 
+fn parseMethod(method: []const u8) !HttpMethod {
+    if (std.mem.eql(u8, method, "GET")) return HttpMethod.GET;
+    if (std.mem.eql(u8, method, "POST")) return HttpMethod.POST;
+    return error.InvalidMethod;
+}
+
 pub fn printRequest(req: Request) !void {
     const stdout = std.io.getStdOut().writer();
-    try stdout.print("{s} {s} {s}\n", .{ req.start_line.method, req.start_line.target, req.start_line.protocol });
+    try stdout.print("{any} {s} {s}\n", .{ req.start_line.method, req.start_line.target, req.start_line.protocol });
     for (req.headers.items[0..req.headers.items.len]) |header| {
         try stdout.print("{s}: {s}\n", .{ header.name, header.value });
     }

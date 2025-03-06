@@ -53,6 +53,7 @@ fn handleConnection(connection: std.net.Server.Connection, stdout: std.fs.File.W
         _ = pathIter.next();
 
         const root = pathIter.next() orelse "";
+
         if (std.mem.eql(u8, root, "echo")) {
             const second = pathIter.next() orelse "";
             try response.sendText(connection, allocator, second);
@@ -65,9 +66,17 @@ fn handleConnection(connection: std.net.Server.Connection, stdout: std.fs.File.W
                 }
             }
             try response.sendText(connection, allocator, user_agent_str);
-        } else if (true) {
+        } else if (std.mem.eql(u8, root, "files")) {
             const filename = pathIter.next() orelse "";
-            try response.sendFile(connection, allocator, filename);
+
+            switch (req.start_line.method) {
+                .GET => {
+                    try response.sendFile(connection, allocator, filename);
+                },
+                .POST => {
+                    try response.createFile(connection, allocator, filename, req.body);
+                },
+            }
         } else {
             try response.notFound(connection, allocator);
         }
