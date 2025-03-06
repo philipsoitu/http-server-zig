@@ -23,11 +23,11 @@ pub const Request = struct {
 };
 
 pub fn parseRequest(buff: []const u8, allocator: std.mem.Allocator) !Request {
-    var iter = std.mem.splitAny(u8, buff, "\r\n");
+    var iter = std.mem.splitSequence(u8, buff, "\r\n");
 
     // Parse start line
     const start_line_str = iter.next() orelse return error.InvalidRequest;
-    var parts = std.mem.splitAny(u8, start_line_str, " ");
+    var parts = std.mem.splitSequence(u8, start_line_str, " ");
     const method_str = parts.next() orelse return error.InvalidRequest;
     const target = parts.next() orelse return error.InvalidRequest;
     const protocol = parts.next() orelse return error.InvalidRequest;
