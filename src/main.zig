@@ -1,91 +1,43 @@
 const std = @import("std");
 const net = std.net;
-const request = @import("request.zig");
-const response = @import("response.zig");
+const http = std.http;
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
-    const allocator = std.heap.page_allocator;
+    const addr = net.Address.parseIp4("127.0.0.1", 6969) catch |err| {
+        std.debug.print("Error parsing address: {}\n", .{err});
+        return;
+    };
 
-    const address = try net.Address.resolveIp("127.0.0.1", 42069);
-    var listener = try address.listen(.{
-        .reuse_address = true,
-    });
-    defer listener.deinit();
+    var server = try addr.listen(.{});
+    startServer(&server);
+}
 
-    var thread_pool: std.Thread.Pool = undefined;
-    try std.Thread.Pool.init(&thread_pool, .{
-        .allocator = allocator,
-        .n_jobs = 10,
-    });
-    defer thread_pool.deinit();
-
-    try stdout.writeAll("Server started on 127.0.0.1:42069\n");
-
+fn startServer(server: *net.Server) void {
     while (true) {
-        const connection = try listener.accept();
-        // Use a closure to handle the error properly
-        try thread_pool.spawn(struct {
-            fn run(conn: std.net.Server.Connection, out: std.fs.File.Writer, alloc: std.mem.Allocator) void {
-                handleConnection(conn, out, alloc) catch |err| {
-                    std.log.err("Connection handling failed: {}", .{err});
-                };
-            }
-        }.run, .{ connection, stdout, allocator });
+        var connection = server.accept() catch |err| {
+            std.debug.print("Accept error: {}\n", .{err});
+            continue;
+        };
+        defer connection.stream.close();
+
+        var read_buffer: [1024]u8 = undefined;
+        var http_server = http.Server.init(connection, &read_buffer);
+
+        var request = http_server.receiveHead() catch |err| switch (err) {
+            error.HttpConnectionClosing => continue,
+            else => |e| {
+                std.debug.print("Error receiving request head: {}\n", .{e});
+                continue;
+            },
+        };
+
+        handleRequest(&request) catch |err| {
+            std.debug.print("Request handling error: {}\n", .{err});
+        };
     }
 }
 
-fn handleConnection(connection: std.net.Server.Connection, stdout: std.fs.File.Writer, allocator: std.mem.Allocator) !void {
-    defer connection.stream.close();
-    const buff = try allocator.alloc(u8, 1048);
-    defer allocator.free(buff);
-
-    _ = try connection.stream.read(buff);
-    try stdout.writeAll("received: \n");
-
-    const req = try request.parseRequest(buff, allocator);
-    try request.printRequest(req);
-
-    if (std.mem.eql(u8, req.start_line.target, "/")) {
-        try response.sendText(connection, allocator, "");
-    } else {
-        var pathIter = std.mem.splitSequence(u8, req.start_line.target, "/");
-        _ = pathIter.next();
-
-        const root = pathIter.next() orelse "";
-
-        if (std.mem.eql(u8, root, "echo")) {
-            const second = pathIter.next() orelse "";
-            try response.sendText(connection, allocator, second);
-        } else if (std.mem.eql(u8, root, "user-agent")) {
-            var user_agent_str: []const u8 = "";
-            for (req.headers.items) |header| {
-                if (std.mem.eql(u8, header.name, "User-Agent")) {
-                    user_agent_str = header.value;
-                    break;
-                }
-            }
-            try response.sendText(connection, allocator, user_agent_str);
-        } else if (std.mem.eql(u8, root, "files")) {
-            const filename = pathIter.next() orelse "";
-
-            switch (req.start_line.method) {
-                .GET => {
-                    try response.sendFile(connection, allocator, filename);
-                },
-                .POST => {
-                    var length: usize = 0;
-                    for (req.headers.items) |header| {
-                        if (std.mem.eql(u8, header.name, "Content-Length")) {
-                            length = try std.fmt.parseInt(usize, header.value, 10);
-                            break;
-                        }
-                    }
-                    try response.createFile(connection, allocator, filename, req.body, length);
-                },
-            }
-        } else {
-            try response.notFound(connection, allocator);
-        }
-    }
+fn handleRequest(request: *http.Server.Request) !void {
+    std.debug.print("Received request for {s}\n", .{request.head.target});
+    try request.respond("Hello, Zig HTTP server!\n", .{});
 }
